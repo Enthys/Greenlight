@@ -50,19 +50,29 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	token, err := app.models.Tokens.New(user.ID, 3*24*time.Hour, data.ScopeActivation)
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
-		if err = app.models.Users.Delete(user); err != nil {
+	rollbackUser := func() {
+		if err := app.models.Users.Delete(user); err != nil {
 			switch {
 			case errors.Is(err, data.ErrRecordNotFound):
 				return
 			default:
 				app.logger.PrintError(err, map[string]string{
-					"user_delete": "failed to delete user which failed registration. Error: " + err.Error(),
+					"user_register_rollback": "failed to delete user which failed registration. Error: " + err.Error(),
 				})
 			}
 		}
+	}
+
+	if err := app.models.Permissions.AddForUser(user.ID, "movies:read"); err != nil {
+		rollbackUser()
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	token, err := app.models.Tokens.New(user.ID, 3*24*time.Hour, data.ScopeActivation)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		rollbackUser()
 		return
 	}
 
