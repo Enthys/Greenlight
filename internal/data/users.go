@@ -190,6 +190,9 @@ func (m UserModel) Delete(user *User) error {
 	defer cancel()
 
 	result, err := m.DB.ExecContext(ctx, query, user.ID, user.Version)
+	if err != nil {
+		return err
+	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
