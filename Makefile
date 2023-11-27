@@ -24,9 +24,9 @@ confirm:
 run/setup:
 	@if [ ! -e ".env" ]; then echo 'Copying .env.default under name .env.' && cp .env.default .env; fi
 
-## run/db: starts the development database 
+## run/db: starts the development database
 .PHONY: run/db
-run/db: 
+run/db:
 	docker compose up -d
 
 ## run/api: run the cmd/api application
@@ -36,7 +36,7 @@ run/api:
 
 ## db/connect: connecto to the development database using psql
 .PHONY: db/connect
-db/connect: run/db 
+db/connect: run/db
 	@docker container exec -it greenlight-database-1 psql ${GREENLIGHT_DB_DSN}
 
 ## db/migrations/up: apply all up database migrations
@@ -92,3 +92,30 @@ build/api:
 	@echo 'Building cmd/api'
 	go build -ldflags=${linker_flags} -o=./bin/api ./cmd/api
 	GOOS=linux GOARCH=amd64 go build -ldflags=${linker_flags} -o=./bin/linux_amd64/api ./cmd/api
+
+# ===================================================================================#
+# PRODUCTION
+# ===================================================================================#
+
+## production/connect: connect to the production server
+.PHONY: production/connect
+production/connect:
+	ssh greenlight@${GREENLIGHT_PROD_IP}
+
+## production/deploy/api: deploy the api to production
+.PHONY: production/deploy/api
+production/deploy/api:
+	rsync -rP --delete ./bin/linux_amd64/api ./migrations greenlight@${GREENLIGHT_PROD_IP}:~
+	ssh -t greenlight@${GREENLIGHT_PROD_IP} 'migrate -path ~/migrations -database $$GREENLIGHT_DB_DSN up'
+
+## production/configure/api.service: configure the production systemd api.service file
+.PHONY: production/configure/api.service
+production/configure/api.service:
+	rsync -P ./remote/production/api.service greenlight@${GREENLIGHT_PROD_IP}:~
+	ssh -t greenlight@${GREENLIGHT_PROD_IP} 'sudo mv ~/api.service /etc/systemd/system/ && sudo systemctl enable api && sudo systemctl restart api'
+
+## production/configure/caddyfile: configure the production Caddyfile
+.PHONY: production/configure/caddyfile
+production/configure/caddyfile:
+	rsync -P ./remote/production/Caddyfile greenlight@${GREENLIGHT_PROD_IP}:~
+	ssh -t greenlight@${GREENLIGHT_PROD_IP} 'sudo mv ~/Caddyfile /etc/caddy/ && sudo systemctl reload caddy'

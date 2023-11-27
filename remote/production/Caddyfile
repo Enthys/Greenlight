@@ -1,0 +1,8 @@
+{
+	email asenj.mihaylov@gmail.com
+}
+
+greenlight.enthys.com {
+	respond /debug/* "Not Permitted" 403
+	reverse_proxy localhost:4000
+}
